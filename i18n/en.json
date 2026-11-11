@@ -1,0 +1,31 @@
+{
+  "title": "CLIProxy Usage",
+  "loading": "Checking accounts…",
+  "accounts": {
+    "one": "%1 account",
+    "other": "%1 accounts"
+  },
+  "proxyUp": "Running on :%1 · %2",
+  "proxyDown": "Not answering on :%1 · %2",
+  "badOutput": "The usage collector printed something unreadable",
+  "collectorFailed": "The usage collector failed; see the shell log",
+  "noAccounts": "No account in %1 has usage to show yet. Supported: Claude, Codex, Antigravity, Kimi, Grok, Devin and Meta sign-ins.",
+  "openControlPanel": "Open the CLIProxyAPI control panel (O)",
+  "refresh": "Check every account now (R)",
+  "session": "Session",
+  "weekly": "Weekly",
+  "monthly": "Monthly",
+  "now": "now",
+  "minutes": "%1m",
+  "hoursMinutes": "%1h %2m",
+  "daysHours": "%1d %2h",
+  "used": "%1: %2% used",
+  "usedResets": "%1: %2% used, resets in %3",
+  "lastUpdatedAgo": "last numbers from %1 ago",
+  "hidden": "Not shown: %1",
+  "unsupported": {
+    "one": "%1 account with no usage endpoint",
+    "other": "%1 accounts with no usage endpoint"
+  },
+  "noNumbers": "no usage numbers yet"
+}

@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "chillerno1.cliproxy-usage",
+  "name": "CLIProxy Usage",
+  "version": "0.1.0",
+  "author": "chillerno1",
+  "license": "MIT",
+  "description": "Plan limits for every account behind your local CLIProxyAPI (Claude, Codex, Antigravity, Kimi, Grok, Devin, Meta): session, weekly and model windows with reset times, and whether the proxy is up.",
+  "kinds": ["bar-widget"],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "CLIProxy Usage",
+    "description": "Session, weekly and model limits per CLIProxyAPI account, with reset times and proxy health.",
+    "category": "AI",
+    "aliases": ["cliproxy", "cli-proxy-api", "cliproxyapi"],
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "refreshIntervalSec": 600
+    },
+    "schema": [
+      { "key": "refreshIntervalSec", "type": "integer", "label": "Refresh interval (seconds)", "min": 60, "max": 3600, "step": 60, "defaultValue": 600 }
+    ]
+  }
+}
