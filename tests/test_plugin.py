@@ -34,6 +34,11 @@ class Manifest(unittest.TestCase):
     self.assertIn(f'moduleName: "{self.manifest["id"]}"', panel)
     self.assertIn(f'ipcTarget: "{self.manifest["id"]}"', panel)
 
+  def test_bar_slot_is_sized_by_the_icon(self):
+    panel = (ROOT / "Panel.qml").read_text()
+    self.assertIn("implicitWidth: button.implicitWidth", panel)
+    self.assertIn("implicitHeight: button.implicitHeight", panel)
+
   def test_version_matches_changelog(self):
     changelog = (ROOT / "CHANGELOG.md").read_text()
     self.assertIn(f"## {self.manifest['version']}", changelog)

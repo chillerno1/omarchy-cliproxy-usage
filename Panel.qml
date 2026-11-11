@@ -16,6 +16,11 @@ Panel {
   ipcTarget: "chillerno1.cliproxy-usage"
   manageIpc: false
 
+  // The bar lays widgets out by their implicit size; without these the icon
+  // gets a zero-height slot and draws clipped above the bar.
+  implicitWidth: button.implicitWidth
+  implicitHeight: button.implicitHeight
+
   Commons.Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
 
   readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
