@@ -27,5 +27,16 @@
     "one": "%1 account with no usage endpoint",
     "other": "%1 accounts with no usage endpoint"
   },
-  "noNumbers": "no usage numbers yet"
+  "noNumbers": "no usage numbers yet",
+  "gatewayPolicy": "Gateway policy",
+  "withinTier": "Within a tier",
+  "roundRobin": "Round-robin",
+  "weightedRoundRobin": "Weighted round-robin",
+  "fillFirst": "Fill first",
+  "sessionAffinity": "Session affinity",
+  "on": "On",
+  "off": "Off",
+  "retryRounds": "Retry rounds",
+  "credentialsPerRound": "Credentials per round",
+  "unavailable": "Unavailable"
 }

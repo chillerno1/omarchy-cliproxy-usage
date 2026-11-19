@@ -486,28 +486,77 @@ def config_from_process() -> Path | None:
   return None
 
 
+def config_scalars(lines: list[str]) -> dict[tuple[str, ...], str]:
+  """Read block-mapping scalar paths without loading credentials or YAML tags.
+
+  Only exact allowlisted paths are consumed below. Complex YAML values stay
+  uninterpreted and are displayed as unavailable rather than executed.
+  """
+  values = {}
+  parents = []
+  for line in lines:
+    match = re.match(r"^( *)([\w-]+):(?:\s+(.*)|\s*)$", line)
+    if not match:
+      continue
+    indent, key, raw = len(match[1]), match[2], match[3] or ""
+    if raw.startswith("#"):
+      raw = ""
+    while parents and parents[-1][0] >= indent:
+      parents.pop()
+    path = tuple(p[1] for p in parents) + (key,)
+    # Comments outside quotes only; a quoted path can itself contain ' #'.
+    scalar = re.fullmatch(r'''("(?:[^"\\]|\\.)*"|'(?:[^']|'')*'|[^'"#]*?)(?:\s+#.*)?\s*''', raw)
+    value = scalar[1].strip() if scalar else raw
+    if value.startswith('"'):
+      try:
+        value = json.loads(value)
+      except ValueError:
+        pass
+    elif value.startswith("'") and value.endswith("'"):
+      value = value[1:-1].replace("''", "'")
+    values[path] = value
+    parents.append((indent, key))
+  return values
+
+
+def gateway_policy(values: dict[tuple[str, ...], str]) -> dict[str, Any]:
+  def read(path: tuple[str, ...], default: str, legacy: tuple[str, ...] | None = None) -> str | None:
+    if any(values.get(path[:i], "") for i in range(1, len(path))):
+      return None  # flow mappings, aliases and other unsupported parent values
+    return values.get(path, values.get(legacy, default) if legacy else default)
+
+  strategy = read(("routing", "strategy"), "round-robin")
+  affinity = read(("routing", "session-affinity"), "false")
+
+  def count(key: str, default: str) -> int | None:
+    raw = read(("routing", "retry", key), default, (key,))
+    return int(raw) if raw and re.fullmatch(r"[0-9]{1,9}", raw) else None
+
+  return {
+    "strategy": strategy if strategy in ("round-robin", "weighted-round-robin", "fill-first") else None,
+    "sessionAffinity": affinity.lower() == "true" if affinity and affinity.lower() in ("true", "false") else None,
+    "retryRounds": count("request-retry", "3"),
+    "credentialsPerRound": count("max-retry-credentials", "0"),
+  }
+
+
 def proxy_config() -> dict[str, Any]:
-  """auth-dir and port from config.yaml; only these two keys are needed, so
-  they are read line by line instead of with a YAML parser."""
+  """Read only the proxy location and gateway policy from block YAML."""
   env = os.environ.get("CLIPROXY_CONFIG")
   path = expand(env) if env else config_from_process() or home() / ".cli-proxy-api" / "config.yaml"
-  config = {"path": str(path), "authDir": home() / ".cli-proxy-api", "port": 8317}
+  config = {"path": str(path), "authDir": home() / ".cli-proxy-api", "port": 8317, "gatewayPolicy": None}
   try:
     lines = path.read_text(errors="replace").splitlines()
   except OSError:
     return config
-  for line in lines:
-    stripped = line.split(" #", 1)[0].rstrip()
-    body = stripped.lstrip()
-    if not body or body.startswith("#") or ":" not in body:
-      continue
-    indent = len(stripped) - len(body)
-    key, value = (part.strip() for part in body.split(":", 1))
-    value = value.strip("\"'")
-    if key == "port" and indent <= 2 and value.isdigit():
-      config["port"] = int(value)
-    elif key == "auth-dir" and value:
-      config["authDir"] = expand(value)
+  values = config_scalars(lines)
+  port = values.get(("server", "port"), values.get(("port",), ""))
+  auth_dir = values.get(("oauth", "auth-dir"), values.get(("auth-dir",), ""))
+  if port.isdigit():
+    config["port"] = int(port)
+  if auth_dir:
+    config["authDir"] = expand(auth_dir)
+  config["gatewayPolicy"] = gateway_policy(values)
   return config
 
 
@@ -631,6 +680,7 @@ def collect(force: bool) -> dict[str, Any]:
     "schemaVersion": 1,
     "updatedAt": now,
     "proxy": {"up": running, "port": config["port"], "authDir": str(config["authDir"]), "config": config["path"]},
+    "gatewayPolicy": config["gatewayPolicy"],
     "accounts": accounts,
     "unsupportedAccounts": unsupported,
   }

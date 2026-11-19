@@ -2,11 +2,12 @@
 
 A bar widget for [Omarchy](https://omarchy.org) that shows how much of each plan is left for every account behind
 your local [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI). It covers session, weekly and per-model limits,
-with the time until each one resets, and also shows whether the proxy is answering.
+with the time until each one resets. It also shows whether the proxy is answering and a compact, read-only
+summary of its gateway policy.
 
 ![CLIProxy Usage panel](preview.png)
 
-*The screenshot uses made-up accounts.*
+*The screenshot renders the panel content with made-up accounts.*
 
 It finds everything you've signed in to CLIProxyAPI, so there's nothing to configure. Each account that returns usage
 numbers gets its own section, and the rest are listed in one line at the bottom along with the reason.
@@ -48,7 +49,14 @@ The icon (󰒍) appears on the right of the bar. You can move it with
 
 Percentages show quota **used**. CLIProxyAPI's Antigravity panel shows quota **remaining**, so 93% there means 7% used here.
 
-Hover a meter to see the exact percentage. The bar can also drive it from the shell:
+Hover a meter to see the exact percentage.
+
+Below the account meters, **Gateway policy** shows the within-tier routing strategy, session affinity,
+retry rounds, and credentials per round from the proxy's config. A credentials-per-round value of `0`
+means all available credentials. This section is read-only; use the control panel to edit the settings.
+It updates on the next check or when you reopen the panel. Unreadable settings show **Unavailable**.
+
+The bar can also drive it from the shell:
 
 ```sh
 omarchy-shell chillerno1.cliproxy-usage toggle
@@ -64,7 +72,8 @@ An answer less than two minutes old is reused, so opening and closing the panel 
 
 - **Where it finds the proxy.** It reads the `--config` path of the running `cli-proxy-api` process, and falls back to
   `~/.cli-proxy-api/config.yaml`. You can override this with the `CLIPROXY_CONFIG` environment variable. From that file
-  it reads only `port` and `auth-dir`.
+  it reads `port`, `auth-dir`, and the four gateway policy settings. Both current and legacy block YAML
+  layouts are supported; complex YAML values such as aliases or flow mappings show as unavailable.
 - **What it reads.** The OAuth credential files in `auth-dir`, read-only. It never refreshes or rewrites a token; that
   stays CLIProxyAPI's job. If an access token has lapsed, the collector skips that account until the proxy refreshes it
   on its next request.
@@ -102,7 +111,11 @@ rm -rf ~/.cache/chillerno1.cliproxy-usage
 python3 -m unittest discover -s tests      # parsers for every provider, caching, plain-text rule
 python3 -I bin/collector.py --force        # the record the panel draws, from your real accounts
 omarchy plugin validate .
+python3 scripts/render-preview.py         # regenerate preview.png with fictional accounts (Omarchy + Quickshell)
 ```
+
+The screenshot renderer uses the panel's actual layout and components in an isolated offscreen window. It does
+not run the collector, query providers, or change the installed plugin.
 
 Saving any file under `~/.config/omarchy/plugins/chillerno1.cliproxy-usage/` reloads the plugin.
 
