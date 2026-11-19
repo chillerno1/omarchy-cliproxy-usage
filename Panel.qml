@@ -314,12 +314,87 @@ Panel {
           HiddenNote {
             width: column.width
           }
+
+          GatewayPolicy {
+            width: column.width
+          }
         }
       }
     }
   }
 
   // ------------------------------------------------------------- components
+
+  component GatewayPolicy: Column {
+    id: policySection
+    readonly property var policy: root.record ? root.record.gatewayPolicy : null
+    visible: root.record !== null
+    spacing: Style.space(10)
+
+    function valueText(value) {
+      return value === null || value === undefined ? strings.t("unavailable") : Commons.I18n.formatNumber(value)
+    }
+
+    function strategyText(strategy) {
+      if (strategy === "round-robin") return strings.t("roundRobin")
+      if (strategy === "weighted-round-robin") return strings.t("weightedRoundRobin")
+      if (strategy === "fill-first") return strings.t("fillFirst")
+      return strings.t("unavailable")
+    }
+
+    readonly property var rows: [
+      { title: strings.t("withinTier"), value: strategyText(policy ? policy.strategy : null) },
+      { title: strings.t("sessionAffinity"), value: policy && typeof policy.sessionAffinity === "boolean"
+          ? (policy.sessionAffinity ? strings.t("on") : strings.t("off")) : strings.t("unavailable") },
+      { title: strings.t("retryRounds"), value: valueText(policy ? policy.retryRounds : null) },
+      { title: strings.t("credentialsPerRound"), value: valueText(policy ? policy.credentialsPerRound : null) }
+    ]
+
+    PanelSeparator { foreground: root.foreground }
+
+    Text {
+      width: parent.width
+      textFormat: Text.PlainText
+      text: strings.t("gatewayPolicy")
+      color: root.foreground
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.body
+      font.bold: true
+    }
+
+    Repeater {
+      model: policySection.rows
+      delegate: Item {
+        required property var modelData
+        width: policySection.width
+        implicitHeight: Math.max(policyLabel.implicitHeight, policyValue.implicitHeight)
+
+        Text {
+          id: policyLabel
+          width: parent.width * 0.55
+          textFormat: Text.PlainText
+          text: modelData.title
+          wrapMode: Text.Wrap
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+        }
+
+        Text {
+          id: policyValue
+          anchors.right: parent.right
+          width: parent.width * 0.45 - Style.space(8)
+          textFormat: Text.PlainText
+          text: modelData.value
+          wrapMode: Text.Wrap
+          horizontalAlignment: Text.AlignRight
+          color: root.foreground
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+        }
+      }
+    }
+  }
 
   component AccountSection: Column {
     id: section

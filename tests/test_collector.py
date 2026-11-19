@@ -266,6 +266,7 @@ class Collect(unittest.TestCase):
 
     self.assertEqual(record["proxy"]["port"], 9999)
     self.assertEqual(record["proxy"]["authDir"], str(self.auth))
+    self.assertEqual(record["gatewayPolicy"]["retryRounds"], 3)
     self.assertEqual(record["unsupportedAccounts"], 1)
     by_id = {a["id"]: a for a in record["accounts"]}
     self.assertEqual(set(by_id), {"claude-a", "xai-b", "codex-d"})
@@ -298,6 +299,13 @@ class Collect(unittest.TestCase):
     self.assertIn("rate limiting", account["note"])
     self.assertEqual([l["title"] for l in account["limits"]], ["Weekly"])
 
+  def test_gateway_policy_updates_without_force(self):
+    path = Path(os.environ["CLIPROXY_CONFIG"])
+    self.assertFalse(collector.collect(force=False)["gatewayPolicy"]["sessionAffinity"])
+    with path.open("a") as handle:
+      handle.write("routing:\n  session-affinity: true\n")
+    self.assertTrue(collector.collect(force=False)["gatewayPolicy"]["sessionAffinity"])
+
   def test_unexpected_answer_shape_does_not_crash(self):
     self.cred("claude-a", type="claude", access_token=SECRET, expired=FUTURE)
     with mock.patch.object(collector, "http_json", answers({"oauth": ["not", "an", "object"]})):
@@ -306,6 +314,73 @@ class Collect(unittest.TestCase):
 
 
 class Config(unittest.TestCase):
+  def policy(self, source):
+    with tempfile.TemporaryDirectory() as tmp:
+      path = Path(tmp) / "config.yaml"
+      path.write_text(source)
+      with mock.patch.dict(os.environ, {"CLIPROXY_CONFIG": str(path)}):
+        return collector.proxy_config()["gatewayPolicy"]
+
+  def test_gateway_policy_current_layout(self):
+    policy = self.policy('''routing: # gateway
+  strategy: 'weighted-round-robin' # distribution
+  session-affinity: true
+  retry:
+    request-retry: 5
+    max-retry-credentials: 2
+api-keys:
+  request-retry: 99
+  strategy: fill-first
+''')
+    self.assertEqual(policy, {
+      "strategy": "weighted-round-robin", "sessionAffinity": True,
+      "retryRounds": 5, "credentialsPerRound": 2,
+    })
+
+  def test_gateway_policy_legacy_and_zero(self):
+    policy = self.policy('''request-retry: 0
+max-retry-credentials: 4
+routing:
+  strategy: fill-first
+  session-affinity: false
+''')
+    self.assertEqual(policy, {
+      "strategy": "fill-first", "sessionAffinity": False,
+      "retryRounds": 0, "credentialsPerRound": 4,
+    })
+
+  def test_gateway_policy_defaults_and_nested_precedence(self):
+    self.assertEqual(self.policy(""), {
+      "strategy": "round-robin", "sessionAffinity": False,
+      "retryRounds": 3, "credentialsPerRound": 0,
+    })
+    policy = self.policy("request-retry: 7\nrouting:\n  retry:\n    request-retry: 0\n")
+    self.assertEqual(policy["retryRounds"], 0)
+
+  def test_gateway_policy_invalid_values_are_unavailable(self):
+    policy = self.policy('''routing:
+  strategy: unexpected
+  session-affinity: maybe
+  retry:
+    request-retry: -1
+    max-retry-credentials: [1, 2]
+''')
+    self.assertTrue(all(value is None for value in policy.values()))
+    policy = self.policy('routing: {strategy: fill-first}\n')
+    self.assertTrue(all(value is None for value in policy.values()))
+
+  def test_missing_config_is_unavailable(self):
+    with tempfile.TemporaryDirectory() as tmp:
+      with mock.patch.dict(os.environ, {"CLIPROXY_CONFIG": str(Path(tmp) / "missing.yaml")}):
+        self.assertIsNone(collector.proxy_config()["gatewayPolicy"])
+
+  def test_quoted_hash_in_auth_path(self):
+    with tempfile.TemporaryDirectory() as tmp:
+      path = Path(tmp) / "config.yaml"
+      path.write_text('oauth:\n  auth-dir: "~/my # accounts" # comment\n')
+      with mock.patch.dict(os.environ, {"CLIPROXY_CONFIG": str(path), "HOME": tmp}):
+        self.assertEqual(collector.proxy_config()["authDir"], Path(tmp) / "my # accounts")
+
   def test_legacy_top_level_layout(self):
     with tempfile.TemporaryDirectory() as tmp:
       path = Path(tmp) / "config.yaml"

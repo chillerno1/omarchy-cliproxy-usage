@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.2
+
+- Show a compact, read-only Gateway policy section below the account meters: within-tier routing, session affinity,
+  retry rounds, and credentials per round.
+- Read gateway settings from current and legacy block YAML config layouts on every check; show unavailable values
+  when the config cannot be read or a setting uses an unsupported value.
+- Update the panel screenshot and document how to regenerate it with fictional accounts.
+
 ## 0.1.1
 
 - Fix Antigravity showing 0% when Gemini quota has been used by sending the versioned client User-Agent expected by Google.
