@@ -46,6 +46,8 @@ The icon (󰒍) appears on the right of the bar. You can move it with
 - **Right-click**, or `O` in the panel, opens CLIProxyAPI's own control panel.
 - The icon turns to the urgent color when a session or weekly limit passes 90%, or when the proxy stops answering.
 
+Percentages show quota **used**. CLIProxyAPI's Antigravity panel shows quota **remaining**, so 93% there means 7% used here.
+
 Hover a meter to see the exact percentage. The bar can also drive it from the shell:
 
 ```sh
@@ -69,7 +71,8 @@ An answer less than two minutes old is reused, so opening and closing the panel 
 - **What it sends.** Each token goes only to the provider that issued it, over HTTPS, at these fixed endpoints:
   - `api.anthropic.com` `/api/oauth/usage` and `/api/oauth/profile`
   - `chatgpt.com` `/backend-api/wham/usage`
-  - `daily-cloudcode-pa.googleapis.com`, with `cloudcode-pa.googleapis.com` as the fallback: `loadCodeAssist` and
+  - `daily-cloudcode-pa.googleapis.com`, with `daily-cloudcode-pa.sandbox.googleapis.com` and
+    `cloudcode-pa.googleapis.com` as fallbacks: `loadCodeAssist` and
     `retrieveUserQuotaSummary`
   - `api.kimi.com` or `api.kimi.ai` `/coding/v1/usages`
   - `cli-chat-proxy.grok.com` `/v1/billing`

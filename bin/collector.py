@@ -56,8 +56,12 @@ CLAUDE_PROFILE = "https://api.anthropic.com/api/oauth/profile"
 CODEX_USAGE = "https://chatgpt.com/backend-api/wham/usage"
 ANTIGRAVITY_BASES = (
   "https://daily-cloudcode-pa.googleapis.com",
+  "https://daily-cloudcode-pa.sandbox.googleapis.com",
   "https://cloudcode-pa.googleapis.com",
 )
+# Match CLIProxyAPI's management center: an unversioned client can receive a
+# successful Claude/GPT-only summary with the Gemini quota silently omitted.
+ANTIGRAVITY_USER_AGENT = "antigravity/hub/2.23.0 darwin/arm64"
 KIMI_USAGE = {"kimi": "https://api.kimi.com/coding/v1/usages", "kimi-ai": "https://api.kimi.ai/coding/v1/usages"}
 GROK_CREDITS = "https://cli-chat-proxy.grok.com/v1/billing?format=credits"
 GROK_MONTHLY = "https://cli-chat-proxy.grok.com/v1/billing"
@@ -264,19 +268,46 @@ def antigravity_used(bucket: dict[str, Any]) -> float | None:
 
 
 def probe_antigravity(cred: dict[str, Any]) -> Probe:
-  headers = {**bearer(cred.get("access_token", "")), "User-Agent": "antigravity"}
+  headers = {**bearer(cred.get("access_token", "")), "User-Agent": ANTIGRAVITY_USER_AGENT}
   last: ProbeError | None = None
+  assist = {}
+  groups = []
+  seen = set()
   for base in ANTIGRAVITY_BASES:
     try:
-      assist = obj(http_json(f"{base}/v1internal:loadCodeAssist", headers, {}))
-      project = assist.get("cloudaicompanionProject") or cred.get("project_id") or ""
+      loaded = obj(http_json(f"{base}/v1internal:loadCodeAssist", headers, {}))
+      if not assist:
+        assist = loaded
+      project = loaded.get("cloudaicompanionProject") or cred.get("project_id") or ""
       project = obj(project).get("id", "") if isinstance(project, dict) else project
       body = {"project": project} if isinstance(project, str) and project else {}
       summary = obj(http_json(f"{base}/v1internal:retrieveUserQuotaSummary", headers, body))
-      break
+      incoming = [obj(g) for g in summary.get("groups") or [] if isinstance(g, dict)]
+      if not incoming and isinstance(summary.get("buckets"), list):
+        incoming = [{"displayName": "Gemini", "buckets": summary["buckets"]}]
+      # A 200 response can be partial. Keep the first answer for each bucket,
+      # and try the other hosts until we have real Gemini quota too.
+      for group in incoming:
+        name = text(group.get("displayName") or group.get("display_name"), 32)
+        buckets = []
+        for raw in group.get("buckets") or []:
+          bucket = obj(raw)
+          if antigravity_used(bucket) is None:
+            continue
+          identity = (name, text(bucket.get("bucketId") or bucket.get("bucket_id") or bucket.get("window")))
+          if identity not in seen:
+            seen.add(identity)
+            buckets.append(bucket)
+        if buckets:
+          groups.append({"displayName": name, "buckets": buckets})
+      if any("gemini" in g["displayName"].lower() or any(
+        str(b.get("bucketId") or b.get("bucket_id") or "").lower().startswith("gemini-")
+        for b in g["buckets"]
+      ) for g in groups):
+        break
     except ProbeError as error:
       last = error
-  else:
+  if not groups:
     raise last or ProbeError("Couldn't reach Google's quota service")
 
   plan = ""
@@ -286,15 +317,12 @@ def probe_antigravity(cred: dict[str, Any]) -> Probe:
       plan = text(tier.get("name"), 32)
       break
 
-  groups = [obj(g) for g in summary.get("groups") or [] if isinstance(g, dict)]
-  if not groups and isinstance(summary.get("buckets"), list):
-    groups = [{"displayName": "Gemini", "buckets": summary["buckets"]}]
   limits = []
   for group in groups:
     name = text(group.get("displayName") or group.get("display_name"), 32)
-    plan_group = "gemini" in name.lower() or len(groups) == 1
     for bucket in group.get("buckets") or []:
       bucket = obj(bucket)
+      plan_group = "gemini" in name.lower() or str(bucket.get("bucketId") or bucket.get("bucket_id") or "").lower().startswith("gemini-")
       used = antigravity_used(bucket)
       if used is None or (not plan_group and used <= 0):
         continue

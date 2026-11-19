@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "chillerno1.cliproxy-usage",
   "name": "CLIProxy Usage",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": "chillerno1",
   "license": "MIT",
   "description": "Plan limits for every account behind your local CLIProxyAPI (Claude, Codex, Antigravity, Kimi, Grok, Devin, Meta): session, weekly and model windows with reset times, and whether the proxy is up.",

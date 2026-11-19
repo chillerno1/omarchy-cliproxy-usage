@@ -108,6 +108,7 @@ class Providers(unittest.TestCase):
     ]}
     seen = {}
     def fake(url, headers, body=None):
+      self.assertEqual(headers["User-Agent"], "antigravity/hub/2.23.0 darwin/arm64")
       seen[url.rsplit(":", 1)[-1]] = body
       return assist if "loadCodeAssist" in url else summary
     with mock.patch.object(collector, "http_json", fake):
@@ -115,6 +116,40 @@ class Providers(unittest.TestCase):
     self.assertEqual(seen["retrieveUserQuotaSummary"], {"project": "proj-1"})
     self.assertEqual(titles(probe), [("Session", 0.25), ("Weekly", 0.5), ("Claude and GPT models session", 1.0)])
     self.assertEqual(probe["plan"], "Google AI Pro")
+
+  def test_antigravity_partial_summary_tries_other_hosts(self):
+    third_party = {"displayName": "Claude and GPT models", "buckets": [
+      {"bucketId": "3p-5h", "window": "5h", "remainingFraction": 0.8},
+    ]}
+    gemini = {"displayName": "Gemini Models", "buckets": [
+      {"bucketId": "gemini-5h", "window": "5h", "remainingFraction": 0.93},
+      {"bucketId": "gemini-weekly", "window": "weekly", "remainingFraction": 0.98},
+    ]}
+    calls = []
+    def fake(url, headers, body=None):
+      calls.append(url)
+      if "loadCodeAssist" in url:
+        return {"cloudaicompanionProject": "proj-1"}
+      if "sandbox" in url:
+        return {"groups": [third_party, gemini]}
+      return {"groups": [third_party]}
+    with mock.patch.object(collector, "http_json", fake):
+      probe = collector.probe_antigravity({"access_token": "t"})
+    self.assertEqual(titles(probe), [("Claude and GPT models session", 0.2), ("Session", 0.07), ("Weekly", 0.02)])
+    self.assertEqual(len(calls), 4)
+
+  def test_antigravity_single_third_party_group_keeps_its_name(self):
+    def fake(url, headers, body=None):
+      if "loadCodeAssist" in url:
+        return {}
+      if "sandbox" in url or url.startswith("https://cloudcode-pa"):
+        raise collector.ProbeError("down")
+      return {"groups": [{"displayName": "Claude and GPT models", "buckets": [
+        {"bucketId": "3p-weekly", "window": "weekly", "remainingFraction": 0.7},
+      ]}]}
+    with mock.patch.object(collector, "http_json", fake):
+      probe = collector.probe_antigravity({"access_token": "t"})
+    self.assertEqual(titles(probe), [("Claude and GPT models weekly", 0.3)])
 
   def test_antigravity_falls_back_to_second_host(self):
     calls = []
